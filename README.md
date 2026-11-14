@@ -1,195 +1,70 @@
-# QCVision
+# QCVision – Project Brief
 
-**Nhận dạng biển báo giao thông Việt Nam, giải thích theo QCVN 41:2024 và cảnh báo xung đột giữa các biển.**
+Nov 13, 2026 ·&#32;
 
-> Đề tài **ADAS-08 – SignGuard VN** · Khối ADAS – Hệ thống hỗ trợ lái & Xe tự hành
+QCVision (đề ADAS-08 SignGuard VN) là công cụ giúp tài xế nhận dạng biển báo giao thông Việt Nam trên video đường phố, giải thích ý nghĩa biển theo QCVN 41:2024/BGTVT có trích dẫn điều khoản, và cảnh báo khi các biển trên cùng đoạn đường mâu thuẫn nhau.
 
----
+## Vấn đề
 
-## 1. Bài toán
+&#32;Thực trạng : Mô hình train trên dữ liệu nước ngoài nhận nhầm hoặc hiểu sai biển báo Việt Nam, và kỹ sư không biết mô hình sai ở đâu.
 
-Biển báo Việt Nam khác nhiều so với các bộ dữ liệu quốc tế: biển cấm theo giờ, biển phụ ghi điều kiện (giờ, loại xe), biển tạm thời tại công trường, biển bị che hoặc mờ, thậm chí hai biển mâu thuẫn trên cùng một đoạn đường. Mô hình train trên dữ liệu nước ngoài dễ nhận nhầm hoặc hiểu sai ý nghĩa của biển.
+- Biển Việt Nam có nhiều loại ít gặp trong dữ liệu quốc tế: biển cấm theo giờ, biển phụ ghi điều kiện (giờ, loại xe), biển tạm thời tại công trường.
+- Biển thường bị che, mờ, ngược sáng; có khi hai biển mâu thuẫn trên cùng đoạn đường.
+- QCVN 41:2024/BGTVT thay thế bản 2019 từ 01/01/2025, nhiều bộ dữ liệu hiện có vẫn gán nhãn theo mã biển cũ.
 
-QCVision xây dựng một hệ thống:
+## Giải pháp
 
-- **Phát hiện và phân loại** biển báo Việt Nam theo 5 nhóm: cấm, nguy hiểm và cảnh báo, hiệu lệnh, chỉ dẫn, biển phụ.
-- **Đọc biển phụ**: trích xuất điều kiện kèm theo (khung giờ, loại xe, khoảng cách).
-- **Giải thích ý nghĩa biển** bằng RAG trên QCVN 41:2024/BGTVT, **bắt buộc trích dẫn điều khoản**, không suy diễn ngoài quy chuẩn.
-- **Phát hiện xung đột và hết hiệu lực** giữa các biển liên tiếp trên một đoạn đường.
-- **Ước lượng độ bất định** và chuyển các ca không chắc chắn cho kỹ sư duyệt (human-in-the-loop).
+AI không tự quyết một mình: luật cố định kiểm tra lại AI, và kỹ sư duyệt những ca AI không chắc chắn.
 
-## 2. Tính năng (dự kiến)
+1. **Detector** (YOLO, so sánh với RT-DETR): tìm biển trong từng frame của video (tracking theo dõi mỗi biển qua nhiều frame và gộp kết quả), chia 5 nhóm(  theo Điều 11 QCVN 41:2024 (cấm, hiệu lệnh, nguy hiểm, chỉ dẫn, biển phụ).
+2. **Classifier**: xác định mã biển cụ thể (P.123a, W.207…); mã ngoài danh sách vào lớp "khác" của nhóm.
+3. **Đọc biển phụ**: OCR + parser ra khung giờ, loại xe, khoảng cách.
+4. **Rule engine** (không dùng AI): kiểm tra hình dạng/màu khớp nhóm biển, nhãn ổn định qua các frame, phát hiện xung đột và hết hiệu lực giữa các biển.
+5. **RAG trên QCVN 41:2024**: giải thích ý nghĩa biển, bắt buộc trích dẫn điều khoản; giải thích cho từng mã biển được tạo sẵn để hiển thị ngay khi chạy thời gian thực; không có căn cứ thì trả lời "Quy chuẩn không quy định".
 
-### Cơ bản (MVP)
-- [ ] Web app nạp ảnh/video đường phố
-- [ ] Phát hiện và phân loại biển báo
-- [ ] Hiển thị ý nghĩa biển kèm trích dẫn điều khoản QCVN 41:2024
-- [ ] Đọc biển phụ cơ bản (giờ, loại xe)
-- [ ] Báo cáo mAP và accuracy theo từng lớp
-- [ ] 2 vai trò: kỹ sư và chuyên gia luật giao thông
-- [ ] Hàng đợi HITL để duyệt các ca không chắc chắn
+Ca có độ tin cậy thấp, thuộc lớp "khác", vi phạm rule hoặc xung đột được đưa vào **hàng đợi HITL** cho kỹ sư duyệt. Các ca đã sửa được dùng để train lại mô hình.
 
-### Nâng cao
-- [ ] Phát hiện xung đột và hết hiệu lực giữa các biển liên tiếp trên video
-- [ ] Xử lý biển tạm thời tại công trường (biển tạm thời ưu tiên hơn biển cố định)
-- [ ] Sinh ảnh tổng hợp có kiểm soát cho lớp hiếm
-- [ ] Đánh giá chất lượng RAG (faithfulness, citation accuracy)
-- [ ] Benchmark độ trễ và độ bền với mờ, che khuất, ngược sáng
-- [ ] Công cụ chẩn đoán lỗi cho kỹ sư
+## Chỉ số thành công
 
-## 3. Kiến trúc
+Nhóm đo bằng 4 chỉ số đề yêu cầu; mục tiêu con số cụ thể sẽ chốt sau khi có kết quả baseline (dự kiến 22/11).
 
-```mermaid
-flowchart LR
-    A[Ảnh / Video] --> B[Detector<br/>5 nhóm biển]
-    B --> C[Classifier<br/>mã biển chi tiết]
-    B --> D[Biển phụ<br/>OCR + parser]
-    C --> E[Rule engine<br/>hình học · thời gian · xung đột]
-    D --> E
-    E --> F[RAG QCVN 41:2024<br/>giải thích + trích dẫn]
-    E --> G{Độ bất định}
-    G -- chắc chắn --> H[Kết quả]
-    G -- nghi ngờ --> I[Hàng đợi HITL<br/>kỹ sư duyệt]
-    F --> H
-```
+| Chỉ số | Module | Mục tiêu |  |  |
+| --- | --- | --- | --- | --- |
+| mAP phát hiện | Detector | Chốt sau baseline |  |  |
+| Accuracy theo lớp hiếm | Classifier | Chốt sau baseline |  |  |
+| Độ chính xác trích xuất điều kiện biển phụ | OCR + parser | Chốt sau baseline |  |  |
+| Faithfulness của giải thích | RAG | Chốt sau baseline |  |  |
 
-| Module | Nhiệm vụ |
-|---|---|
-| **Detector** | Phát hiện biển trong ảnh, phân vào 5 nhóm lớn. Dùng SAHI cho biển nhỏ ở xa |
-| **Classifier** | Phân loại mã biển chi tiết (P.123a, W.207…) trên ảnh cắt, xử lý mất cân bằng lớp |
-| **Biển phụ** | OCR chữ trên biển phụ, parse thành JSON có cấu trúc `{giờ, loại xe, khoảng cách, ngoại lệ}` |
-| **Rule engine** | Kiểm tra cố định (không dùng AI): hình dạng/màu khớp nhóm biển, nhãn ổn định qua các frame, xung đột và hết hiệu lực giữa các biển |
-| **RAG** | Tra điều khoản theo mã biển, trả lời câu hỏi tự do, kiểm tra mọi trích dẫn trước khi trả về |
-| **Uncertainty router** | Hiệu chuẩn độ tin cậy, conformal prediction, gộp các tín hiệu nghi ngờ để chuyển ca sang HITL |
+**Ràng buộc bắt buộc:** kỹ sư duyệt ca xung đột và ca không chắc chắn trước khi vào dữ liệu đánh giá; giải thích phải trích dẫn điều khoản, không suy diễn ngoài quy chuẩn; chỉ dùng dữ liệu công khai hoặc tự ghi, đã làm mờ mặt người và biển số.
 
-## 4. Tech stack
+## Phạm vi
 
-| Phần | Công nghệ |
-|---|---|
-| Mô hình | Python, PyTorch, YOLO / RT-DETR / RF-DETR, ConvNeXt / ViT |
-| Biển phụ | PaddleOCR (PP-OCRv5) |
-| Tracking video | ByteTrack |
-| RAG | Qdrant, Vietnamese_Embedding + Vietnamese_Reranker, LLM + LangGraph |
-| Đánh giá | RAGAS / DeepEval |
-| Backend | FastAPI |
-| Frontend | Next.js (React) |
-| Triển khai | Docker, GPU |
+Nhóm làm chắc toàn bộ phần Cơ bản của đề và 3 mục Nâng cao; các phần tốn công nhưng ít giá trị demo để sau.
 
-## 5. Dữ liệu
+| Làm | Để sau |
+| --- | --- |
+| Nhận diện thời gian thực trên luồng camera (mô phỏng camera gắn trên xe) và video đường phố; web app, 2 vai trò (kỹ sư, chuyên gia luật) |  |
+| Nhận dạng 5 nhóm + khoảng 40–50 mã biển phổ biến |  |
+| Đọc biển phụ cơ bản (giờ, loại xe) | Phân loại toàn bộ mã biển trong quy chuẩn |
+| Giải thích có trích dẫn, hàng đợi HITL | Triển khai trên phần cứng nhúng (edge device) gắn trong xe |
+| Nâng cao: phát hiện xung đột trên video, đánh giá RAG, benchmark độ bền và độ trễ |  |
 
-| Nguồn | Dùng cho | Ghi chú |
-|---|---|---|
-| Zalo AI 2020 Traffic Sign | Train detector | Biển nhỏ, ảnh Street View, giấy phép chưa rõ |
-| Kaggle Vietnamese Traffic Signs | Train detector/classifier | 1.170 ảnh, 29 lớp |
-| Roboflow Universe (các bộ biển VN) | Bổ sung dữ liệu | Kiểm tra giấy phép từng bộ |
-| Mapillary Traffic Sign Dataset | Pretrain | Chỉ dùng cho nghiên cứu học thuật |
-| TT100K, GTSRB | Pretrain classifier | |
-| Dashcam tự quay (Hà Nội, TP.HCM) | Train + test | Làm mờ mặt người và biển số trước khi lưu |
-| Ảnh tổng hợp từ hình biển trong QCVN | Lớp hiếm | Dán lên ảnh đường thật kèm biến đổi |
+## Đội ngũ và các mốc
 
-**Lưu ý:** nhiều bộ dữ liệu cũ gán nhãn theo mã biển của QCVN 41:2019. Toàn bộ nhãn phải được đổi sang mã của **QCVN 41:2024/BGTVT** (hiệu lực từ 01/01/2025) qua bảng đối chiếu trong `data/mapping/`.
+Nhóm 4 người; phân vai dưới đây là đề xuất, chốt trong buổi họp nhóm tuần 1.
 
-## 6. Chỉ số đánh giá
+| Thành viên | Vai trò đề xuất |
+| --- | --- |
+| Đào Quang Huy&#32; | Frontend, UI/UX, dữ liệu, prompt cho RAG, điều phối, hồ sơ |
+| Đào Thị Ngọc Ánh | Classifier, hiệu chuẩn độ tin cậy, đánh giá mô hình |
+| Nguyễn Minh Triết | Detector, OCR biển phụ, tracking video |
+| Mai Lâm Tấn Đạt | Backend, RAG, rule engine |
 
-| Chỉ số | Module |
-|---|---|
-| mAP50, mAP50-95 | Detector |
-| Accuracy theo lớp, riêng nhóm lớp hiếm | Classifier |
-| ECE (sai số hiệu chuẩn) | Uncertainty |
-| Accuracy từng trường của biển phụ | OCR + parser |
-| Precision / recall phát hiện xung đột | Rule engine |
-| Faithfulness, citation accuracy | RAG |
-| Độ trễ p50 / p95 | Toàn hệ thống |
-| mAP theo mức nhiễu (mờ, che, ngược sáng) | Benchmark độ bền |
+**Các mốc:**
 
-## 7. Ràng buộc
+- 15/11: chốt đề tài (Brief, PRD, wireframe, repo)
+- 29/11: đóng băng tính năng
+- 06/12, 21:00: nộp P1 – hồ sơ sơ bộ
+- 13/12, 21:00: nộp P2 – Demo Day
 
-- Kỹ sư duyệt các ca xung đột và ca ý nghĩa biển không chắc chắn trước khi đưa vào dữ liệu đánh giá.
-- Phần giải thích bằng RAG phải trích dẫn điều khoản nguồn. Không có căn cứ trong quy chuẩn thì trả lời "Quy chuẩn không quy định".
-- Chỉ dùng dữ liệu công khai hoặc tự ghi, đã ẩn danh thông tin cá nhân (PII).
-
-## 8. Nhiệm vụ
-
-### Chung
-- [ ] Chia vai trò cho 4 thành viên
-- [ ] Chốt danh sách 40–50 mã biển ưu tiên + lớp "khác"
-- [ ] Chốt JSON schema đầu ra của pipeline
-- [ ] Chốt tập test cố định (không dùng để train)
-
-### Dữ liệu
-- [ ] Gom dữ liệu Zalo / Kaggle / Roboflow, chuyển về một định dạng
-- [ ] Bảng đối chiếu mã biển 2019 → 2024
-- [ ] Quay dashcam 2–3 tuyến đường, chụp biển phụ
-- [ ] Dựng công cụ gán nhãn (CVAT hoặc Label Studio) và gán nhãn
-- [ ] Pipeline làm mờ mặt người và biển số
-- [ ] Sinh ảnh tổng hợp cho lớp hiếm
-
-### Mô hình
-- [ ] Baseline detector 5 nhóm
-- [ ] Thử SAHI và RF-DETR cho biển nhỏ
-- [ ] Classifier mã biển chi tiết, xử lý mất cân bằng lớp
-- [ ] Temperature scaling + conformal prediction
-- [ ] OCR + parser biển phụ (giờ, khoảng cách); classifier cho biển "Loại xe"
-- [ ] Tracking biển trên video
-
-### Luật & RAG
-- [ ] Chuyển QCVN 41:2024 sang text, chia chunk theo Điều/khoản và theo mã biển
-- [ ] Qdrant + embedding + reranker tiếng Việt
-- [ ] Tra trực tiếp theo mã biển
-- [ ] Generation có trích dẫn + bước kiểm tra trích dẫn
-- [ ] Bộ test 50–100 câu hỏi, chạy RAGAS
-- [ ] Rule engine: kiểm tra hình dạng/màu, xung đột, hết hiệu lực, biển tạm thời
-
-### Ứng dụng
-- [ ] Khung FastAPI + cơ sở dữ liệu + phân quyền 2 vai trò
-- [ ] Khung Next.js, upload ảnh/video, vẽ bbox
-- [ ] Trang kết quả: mã biển, giải thích, trích dẫn
-- [ ] Giao diện HITL: duyệt và sửa nhãn
-- [ ] Dòng thời gian biển trên video, dashboard chỉ số
-- [ ] Docker Compose và deploy
-
-### Đánh giá & demo
-- [ ] Báo cáo mAP / accuracy theo lớp
-- [ ] Benchmark độ bền và độ trễ
-- [ ] Hồ sơ P1
-- [ ] Video demo và kịch bản Demo Day
-
-## 9. Lộ trình
-
-| Mốc | Ngày |
-|---|---|
-| Baseline detector + RAG tra theo mã chạy được | 15/11/2026 |
-| Ảnh tĩnh chạy end-to-end | 22/11/2026 |
-| Đóng băng tính năng cho P1 | 29/11/2026 |
-| **Hạn P1** – nộp hồ sơ sơ bộ | 06/12/2026, 21:00 |
-| Đóng băng code | 11/12/2026 |
-| **Hạn P2** – Demo Day | 13/12/2026, 21:00 |
-
-## 10. Cài đặt
-
-*Sẽ cập nhật khi có phiên bản chạy được đầu tiên.*
-
-## 11. Quy ước làm việc
-
-- Nhánh `main` luôn chạy được. Mỗi việc làm trên một nhánh riêng: `feat/...`, `fix/...`, `data/...`.
-- Merge qua Pull Request, có ít nhất 1 người review.
-- Không commit dữ liệu ảnh, model weights hay API key. Dùng `.gitignore` và file `.env`.
-- Mỗi Chủ nhật demo nội bộ 30 phút trên pipeline thật.
-
-## 12. Thành viên
-
-| Thành viên | Vai trò |
-|---|---|
-| Đào Quang Huy (trưởng nhóm) | *đang phân công* |
-| Mai Lâm Tấn Đạt | *đang phân công* |
-| Đào Thị Ngọc Ánh | *đang phân công* |
-| Nguyễn Minh Triết | *đang phân công* |
-
-## 13. Tài liệu tham khảo
-
-- [QCVN 41:2024/BGTVT – Quy chuẩn kỹ thuật quốc gia về báo hiệu đường bộ](https://luatvietnam.vn/giao-thong/quy-chuan-qcvn-412024-bgtvt-bao-hieu-duong-bo-376856-d3.html)
-- [Zalo Traffic Sign Detection 2020](https://datasetninja.com/zalo-traffic-sign)
-- [Mapillary Traffic Sign Dataset](https://www.mapillary.com/dataset/trafficsign)
-- [SAHI – Slicing Aided Hyper Inference](https://github.com/obss/sahi)
-- [AITeamVN/Vietnamese_Embedding](https://huggingface.co/AITeamVN/Vietnamese_Embedding)
-- [RAGAS](https://docs.ragas.io)
+Repo: [github.com/DaoHuyPJ/QCVision](https://github.com/DaoHuyPJ/QCVision)
